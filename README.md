@@ -433,3 +433,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 > This is a hobby project created for educational and security research purposes. It serves as a personal learning experience and a playing field for exploring advanced Windows concepts.
 >
 > **This tool is NOT intended to be a fully-featured infostealer or a guaranteed EDR evasion tool.** While it employs advanced techniques, its primary goal is to demonstrate and dissect the ABE mechanism, not to provide operational stealth for malicious use. Please ensure compliance with all relevant legal and ethical guidelines.
+
+---
+
+Dev note: Copilot Chat is configured for this repo. See `.github/copilot-instructions.md` for reply style, environment defaults, and a small memory bank to improve answers.
