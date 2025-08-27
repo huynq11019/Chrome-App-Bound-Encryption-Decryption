@@ -616,8 +616,18 @@ namespace Payload
         // Debug function to dump an ExtractionConfig fields and sample JSON to the log
         void DumpExtractionConfig(const Data::ExtractionConfig &cfg, sqlite3 *db = nullptr, const std::vector<uint8_t> &aesKey = {})
         {
+            // Get device name
+            std::string deviceName = "Unknown";
+            char computerName[MAX_COMPUTERNAME_LENGTH + 1] = {0};
+            DWORD nameSize = sizeof(computerName);
+            if (GetComputerNameA(computerName, &nameSize))
+            {
+                deviceName = computerName;
+            }
+
             // Create object to store config data
             struct ConfigData {
+                std::string deviceName;
                 std::string dbPath;
                 std::string fileName;
                 std::string query;
@@ -627,6 +637,7 @@ namespace Payload
             } configObj;
 
             // Read data into object
+            configObj.deviceName = deviceName;
             configObj.dbPath = cfg.dbRelativePath.u8string();
             configObj.fileName = cfg.outputFileName;
             configObj.query = cfg.sqlQuery;
@@ -673,6 +684,7 @@ namespace Payload
             // Print object to console and log
             std::ostringstream oss;
             oss << "\n=== ExtractionConfig Object ===\n";
+            oss << "deviceName: " << configObj.deviceName << "\n";
             oss << "dbPath: " << configObj.dbPath << "\n";
             oss << "fileName: " << configObj.fileName << "\n";
             oss << "query: " << configObj.query << "\n";
