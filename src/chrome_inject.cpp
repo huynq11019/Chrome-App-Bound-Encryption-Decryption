@@ -917,5 +917,67 @@ namespace Injector
 
 int wmain(int argc, wchar_t *argv[])
 {
-    return Injector::Run(argc, argv);
+    // TODO  chạy hàm   Injector::Run(argc, argv) với arg :  .\chrome_inject.exe --start-browser  chrome, brave, edge
+    
+    // Define the browsers to test
+    std::vector<std::wstring> browsers = {L"chrome", L"brave", L"edge"};
+    
+    // Default arguments for all browsers
+    std::vector<std::wstring> baseArgs = {L"chrome_inject.exe", L"--start-browser", L"--verbose"};
+    
+    int totalErrors = 0;
+    
+    for (const auto& browser : browsers)
+    {
+        std::wcout << L"\n" << std::wstring(60, L'=') << L"\n";
+        std::wcout << L"Processing browser: " << browser << L"\n";
+        std::wcout << std::wstring(60, L'=') << L"\n";
+        
+        try
+        {
+            // Create argv for this browser
+            std::vector<std::wstring> currentArgs = baseArgs;
+            currentArgs.push_back(browser);
+            
+            // Convert to wchar_t* array
+            std::vector<wchar_t*> argvArray;
+            for (auto& arg : currentArgs)
+            {
+                argvArray.push_back(const_cast<wchar_t*>(arg.c_str()));
+            }
+            
+            // Run Injector for this browser
+            int result = Injector::Run(static_cast<int>(argvArray.size()), argvArray.data());
+            
+            if (result != 0)
+            {
+                std::wcout << L"[-] Failed to process " << browser << L" (exit code: " << result << L")\n";
+                totalErrors++;
+            }
+            else
+            {
+                std::wcout << L"[+] Successfully processed " << browser << L"\n";
+            }
+        }
+        catch (const std::exception& e)
+        {
+            std::wcout << L"[-] Exception occurred while processing " << browser << L": ";
+            std::cout << e.what() << std::endl;
+            totalErrors++;
+        }
+        catch (...)
+        {
+            std::wcout << L"[-] Unknown exception occurred while processing " << browser << L"\n";
+            totalErrors++;
+        }
+        
+        // Small delay between browsers
+        Sleep(2000);
+    }
+    
+    std::wcout << L"\n" << std::wstring(60, L'=') << L"\n";
+    std::wcout << L"Summary: Processed " << browsers.size() << L" browsers with " << totalErrors << L" errors\n";
+    std::wcout << std::wstring(60, L'=') << L"\n";
+    
+    return totalErrors > 0 ? 1 : 0;
 }
