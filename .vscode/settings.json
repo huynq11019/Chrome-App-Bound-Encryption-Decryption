@@ -70,6 +70,8 @@
         "xhash": "cpp",
         "cwctype": "cpp",
         "functional": "cpp",
-        "random": "cpp"
+        "random": "cpp",
+        "any": "cpp",
+        "set": "cpp"
     }
 }
